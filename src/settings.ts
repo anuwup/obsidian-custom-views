@@ -620,13 +620,17 @@ class FilterBuilder {
 		});
 		searchInput.addEventListener("focus", (e) => {
 			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:513', message: 'Input focus event', data: { target: document.activeElement?.tagName, relatedTarget: (e as FocusEvent).relatedTarget?.tagName }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
+			const relatedTarget = (e as FocusEvent).relatedTarget;
+			const relatedTargetTagName = relatedTarget instanceof HTMLElement ? relatedTarget.tagName : null;
+			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:513', message: 'Input focus event', data: { target: document.activeElement?.tagName, relatedTarget: relatedTargetTagName }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
 			// #endregion
 			container.addClass("cv-has-input-focus");
 		});
 		searchInput.addEventListener("blur", (e) => {
 			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:516', message: 'Input blur event', data: { target: document.activeElement?.tagName, relatedTarget: (e as FocusEvent).relatedTarget?.tagName, containerStillExists: container.isConnected }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
+			const relatedTarget = (e as FocusEvent).relatedTarget;
+			const relatedTargetTagName = relatedTarget instanceof HTMLElement ? relatedTarget.tagName : null;
+			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:516', message: 'Input blur event', data: { target: document.activeElement?.tagName, relatedTarget: relatedTargetTagName, containerStillExists: container.isConnected }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
 			// #endregion
 			container.removeClass("cv-has-input-focus");
 		});

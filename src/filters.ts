@@ -75,7 +75,8 @@ const filters: Record<string, (value: any, ...args: any[]) => any> = {
 			const flags = search.substring(lastSlash + 1);
 			return String(val).replace(new RegExp(pattern, flags), replaceWith);
 		}
-		return String(val).replaceAll(search, replaceWith);
+		// Use global regex replace instead of replaceAll for ES6 compatibility
+		return String(val).replace(new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), replaceWith);
 	},
 
 	// --- Formatting (Markdown) ---
