@@ -1,94 +1,358 @@
-# Obsidian Sample Plugin
+# Obsidian Custom Views <img src="https://img.shields.io/github/manifest-json/v/anuwup/obsidian-custom-views"> <img src="https://img.shields.io/github/downloads/anuwup/obsidian-custom-views/total">
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+A plugin for Obsidian that lets you create custom HTML views for your notes based on filter rules. Transform how your notes are displayed by defining custom templates that match specific files.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+![demo](https://raw.githubusercontent.com/anupchavan/obsidian-custom-views/main/gifs/demo.gif)
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+*[GIF: Show a note with frontmatter (e.g., a movie note with title, year, rating) being displayed in a custom card view instead of the default markdown view. Show the transition from default view to custom view.]*
 
-## First time developing plugins?
+The plugin's main feature is **custom views**, which allow you to:
+- Create beautiful, custom HTML templates for specific notes
+- Match files using powerful filter rules (file properties, frontmatter, tags, etc.)
+- Transform data using filter chains (date formatting, text transformations, etc.)
+- Render note content as markdown within your custom templates
 
-Quick starting guide for new plugin devs:
+Perfect for creating card views, dashboards, or any custom presentation of your notes!
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+## Usage
 
-## Releasing new releases
+### Getting Started
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+<!-- 1. **Enable the plugin** in **Settings → Community plugins**.
+2. Go to **Settings → Custom Views** to configure your views.
+3. Click **"Add New View"** to create your first custom view.
+4. Define **filter rules** to match which files should use this view.
+5. Write an **HTML template** to customize how those files are displayed. -->
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+### Basic Example
 
-## Adding your plugin to the community plugin list
+Let's create a simple view for movie notes. First, add a filter rule:
+- **Property**: `file.folder`
+- **Operator**: `contains`
+- **Value**: `Movies`
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+Then, create a template like this:
 
-## How to use
-
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
-
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint ./src/`
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+```html
+<div class="movie-card">
+  <h1>{{file.title}}</h1>
+  <p>Year: {{file.year}}</p>
+  <p>Rating: {{file.rating}}/10</p>
+  <div>{{file.content}}</div>
+</div>
 ```
 
-If you have multiple URLs, you can also do:
+Now, any note in a folder containing "Movies" will be displayed using this custom template instead of the default markdown view!
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+![basic-example](https://raw.githubusercontent.com/anupchavan/obsidian-custom-views/main/gifs/basic-example.gif)
+
+*[GIF: Show creating a new view in settings, adding a filter rule, writing a simple template, and then opening a matching note to see it rendered.]*
+
+## Features
+
+### Filter Rules
+
+Match files using powerful filter rules based on file properties or frontmatter. You can combine multiple conditions using AND, OR, or NOR logic.
+
+**Available Properties:**
+- **File properties**: `file.name`, `file.path`, `file.folder`, `file.size`, `file.ctime`, `file.mtime`, `file.extension`
+- **Frontmatter**: Any property from your note's frontmatter (e.g., `title`, `tags`, `status`, `date`)
+- **Tags**: The `tags` property (automatically detected as a list)
+
+**Operators:**
+- **Text**: `contains`, `does not contain`, `is`, `is not`, `starts with`, `ends with`, `is empty`, `is not empty`
+- **Numbers**: `=`, `≠`, `<`, `≤`, `>`, `≥`, `is empty`, `is not empty`
+- **Dates**: `on`, `not on`, `before`, `on or before`, `after`, `on or after`, `is empty`, `is not empty`
+- **Lists/Tags**: `contains`, `does not contain`, `is empty`, `is not empty`
+- **Checkboxes**: `is` (true/false)
+
+![filter-rules](https://raw.githubusercontent.com/anupchavan/obsidian-custom-views/main/gifs/filter-rules.gif)
+
+*[GIF: Show the filter builder UI - adding multiple conditions, changing operators, grouping conditions with AND/OR, and showing how the UI adapts based on property types (text input for text, date picker for dates, number input for numbers).]*
+
+### HTML Templates
+
+Write custom HTML templates using a simple placeholder syntax. Access file properties and frontmatter using `{{file.property}}`.
+
+**Basic Placeholders:**
+- `{{file.name}}` - The full filename (e.g., "My Note.md")
+- `{{file.basename}}` - The filename without extension (e.g., "My Note")
+- `{{file.path}}` - The full file path
+- `{{file.folder}}` - The folder path
+- `{{file.size}}` - File size in bytes
+- `{{file.ctime}}` - Creation timestamp
+- `{{file.mtime}}` - Modification timestamp
+- `{{file.content}}` - The note body rendered as markdown
+- `{{file.property}}` - Any frontmatter property (e.g., `{{file.title}}`, `{{file.tags}}`)
+
+**Array Access:**
+- `{{file.tags[0]}}` - First tag
+- `{{file.tags[1]}}` - Second tag
+- etc.
+
+![template-example](https://raw.githubusercontent.com/anupchavan/obsidian-custom-views/main/gifs/template-example.png)
+
+*[Screenshot: Show a complex template example with multiple placeholders, styling, and the rendered result side-by-side.]*
+
+### Filter Chains
+
+Transform values using filter chains. Chain multiple filters together using the pipe (`|`) operator.
+
+**Example:**
+```html
+<h1>{{file.title | capitalize}}</h1>
+<p>Published: {{file.date | date:"MMMM DD, YYYY"}}</p>
+<p>Tags: {{file.tags | join:", " | wikilink}}</p>
 ```
 
-## API Documentation
+**Available Filters:**
 
-See https://github.com/obsidianmd/obsidian-api
+#### Date Filters
+- `date:"FORMAT"` - Format a date (e.g., `date:"YYYY-MM-DD"`, `date:"MMMM DD, YYYY"`)
+- `date:"FORMAT":"INPUT_FORMAT"` - Parse and format a date with custom input format
+- `date_modify:"+1 year"` - Modify a date (e.g., `"+1 year"`, `"-2 months"`)
+
+#### Text Transformation
+- `capitalize` - Capitalize first letter
+- `upper` - Convert to uppercase
+- `lower` - Convert to lowercase
+- `title` - Title case
+- `camel` - Convert to camelCase
+- `kebab` - Convert to kebab-case
+- `snake` - Convert to snake_case
+- `trim` - Remove leading/trailing whitespace
+- `replace:"search":"replace"` - Replace text (supports regex: `replace:"/pattern/flags":"replace"`)
+
+#### Markdown Formatting
+- `wikilink:"alias"` - Convert to wikilink `[[value|alias]]`
+- `link:"text"` - Convert to markdown link `[text](value)`
+- `image:"alt"` - Convert to markdown image `![alt](value)`
+- `blockquote` - Convert each line to blockquote
+
+#### Array Operations
+- `split:","` - Split string into array
+- `join:", "` - Join array into string
+- `first` - Get first element
+- `last` - Get last element
+- `slice:0:5` - Slice array or string
+- `count` - Get length of array or string
+
+#### HTML Processing
+- `strip_tags` - Remove HTML tags
+
+#### Math
+- `calc:"+10"` - Perform calculation (`+`, `-`, `*`, `/`, `^`)
+
+![filter-chains](https://raw.githubusercontent.com/anupchavan/obsidian-custom-views/main/gifs/filter-chains.gif)
+
+*[GIF: Show editing a template with filter chains, demonstrating date formatting, text transformations, and array operations. Show the before/after of the rendered output.]*
+
+### View Modes
+
+The plugin works in different view modes based on your settings:
+
+- **Reading Mode**: Custom views always work in reading mode (preview mode).
+- **Live Preview**: Optionally enable custom views in live preview mode via **Settings → Custom Views → Work in Live Preview**.
+- **Source Mode**: Custom views are disabled in pure source mode (true editor mode).
+
+![view-modes](https://raw.githubusercontent.com/anupchavan/obsidian-custom-views/main/gifs/view-modes.png)
+
+*[Screenshot: Show the same note in different view modes, highlighting which modes show the custom view and which show the default markdown view.]*
+
+### Multiple Views
+
+You can create multiple custom views. The plugin will use the first matching view for each file. This allows you to have different templates for different types of notes.
+
+**Example:**
+- View 1: Movie cards (matches `file.folder contains "Movies"`)
+- View 2: Book cards (matches `file.folder contains "Books"`)
+- View 3: Project dashboards (matches `file.status is "active"`)
+
+![multiple-views](https://raw.githubusercontent.com/anupchavan/obsidian-custom-views/main/gifs/multiple-views.png)
+
+*[Screenshot: Show the settings page with multiple view configurations, and then show different notes matching different views.]*
+
+### Link Navigation
+
+Internal links in your templates work seamlessly. Clicking on `[[wikilinks]]` or markdown links will navigate to the target note, just like in the default Obsidian view.
+
+![link-navigation](https://raw.githubusercontent.com/anupchavan/obsidian-custom-views/main/gifs/link-navigation.gif)
+
+*[GIF: Show clicking on links within a custom view and navigating to other notes.]*
+
+### Script Support
+
+You can include `<script>` tags in your templates for dynamic behavior. Scripts are executed when the template is rendered, allowing you to add interactivity to your custom views.
+
+```html
+<div class="interactive-card">
+  <button onclick="toggleDetails()">Show Details</button>
+  <div id="details" style="display: none;">{{file.content}}</div>
+</div>
+
+<script>
+function toggleDetails() {
+  const details = document.getElementById('details');
+  details.style.display = details.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+```
+
+> [!WARNING]
+> Scripts in templates are executed when the view is rendered. Be careful with scripts from untrusted sources.
+
+## Examples
+
+### Movie Card View
+
+**Filter Rule:**
+- `file.folder` contains `Movies`
+
+**Template:**
+```html
+<div class="movie-card" style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid var(--background-modifier-border); border-radius: 8px;">
+  <h1 style="margin-top: 0;">{{file.title}}</h1>
+  <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+    <div>
+      <strong>Year:</strong> {{file.year}}
+    </div>
+    <div>
+      <strong>Rating:</strong> {{file.rating}}/10
+    </div>
+    <div>
+      <strong>Genre:</strong> {{file.genre | join:", "}}
+    </div>
+  </div>
+  <div style="margin-top: 20px;">
+    {{file.content}}
+  </div>
+</div>
+```
+
+### Project Dashboard
+
+**Filter Rule:**
+- `file.status` is `active`
+
+**Template:**
+```html
+<div class="project-dashboard">
+  <h1>{{file.name | replace:".md":"" | title}}</h1>
+  <div class="metadata">
+    <p><strong>Status:</strong> {{file.status | capitalize}}</p>
+    <p><strong>Due Date:</strong> {{file.due_date | date:"MMMM DD, YYYY"}}</p>
+    <p><strong>Progress:</strong> {{file.progress}}%</p>
+  </div>
+  <div class="tags">
+    Tags: {{file.tags | join:", " | wikilink}}
+  </div>
+  <hr>
+  <div class="content">
+    {{file.content}}
+  </div>
+</div>
+```
+
+### Book Review Card
+
+**Filter Rule:**
+- `file.tags` contains `book`
+
+**Template:**
+```html
+<div style="display: grid; grid-template-columns: 200px 1fr; gap: 20px; padding: 20px;">
+  <div>
+    <img src="{{file.cover_image}}" alt="{{file.title}}" style="width: 100%; border-radius: 4px;">
+  </div>
+  <div>
+    <h1>{{file.title}}</h1>
+    <p><strong>Author:</strong> {{file.author}}</p>
+    <p><strong>Published:</strong> {{file.published | date:"YYYY"}}</p>
+    <p><strong>Rating:</strong> {{file.rating}}/5 ⭐</p>
+    <div style="margin-top: 20px;">
+      {{file.content}}
+    </div>
+  </div>
+</div>
+```
+
+## Commands
+
+The plugin adds the following commands to the Command palette:
+
+- **Enable Custom Views** - Enable the plugin (only shown when disabled)
+- **Disable Custom Views** - Disable the plugin (only shown when enabled)
+
+## Settings
+
+Access settings via **Settings → Custom Views**.
+
+### Global Settings
+
+- **Work in Live Preview** - If enabled, custom views work in both reading mode and live preview mode. If disabled, custom views only work in reading mode.
+
+### View Configuration
+
+Each view has:
+- **Name** - A descriptive name for the view
+- **Filter Rules** - Conditions that determine which files match this view
+- **HTML Template** - The custom HTML template to render for matching files
+
+## Template Reference
+
+### Placeholder Syntax
+
+```
+{{file.PROPERTY[INDEX] | FILTER1:ARG1,ARG2 | FILTER2:ARG3}}
+```
+
+- `PROPERTY` - The property name (file property or frontmatter key)
+- `[INDEX]` - Optional array index (e.g., `[0]` for first element)
+- `| FILTER:ARGS` - Optional filter chain
+
+### Special Placeholders
+
+- `{{file.content}}` - Renders the note body as markdown. This is always rendered as markdown, regardless of context.
+
+### Context-Aware Rendering
+
+Placeholders are rendered differently based on context:
+- **Inside HTML attributes** (e.g., `href="{{file.path}}"`): Returns raw string value
+- **In HTML body**: Renders as markdown if the value contains markdown syntax (like `[[links]]`)
+
+### Filter Chain Syntax
+
+Filters are chained using the pipe (`|`) operator:
+
+```
+{{file.date | date:"YYYY-MM-DD" | upper}}
+```
+
+Filter arguments can be:
+- **Simple values**: `date:"YYYY-MM-DD"`
+- **Multiple arguments**: `replace:"old":"new"` (comma-separated, or use quotes for strings with commas)
+- **Regex patterns**: `replace:"/pattern/flags":"replace"`
+
+## Troubleshooting
+
+### Custom view not showing
+
+1. **Check if plugin is enabled**: Use the command palette to enable custom views.
+2. **Check filter rules**: Ensure your file matches the filter conditions.
+3. **Check view mode**: Custom views only work in reading mode (and live preview if enabled).
+4. **Check view order**: The first matching view is used. Make sure your view appears before other matching views.
+
+### Template not rendering correctly
+
+1. **Check placeholder syntax**: Use `{{file.property}}` format.
+2. **Check property names**: Property names are case-sensitive and must match exactly.
+3. **Check filter syntax**: Filter arguments should be properly quoted if they contain special characters.
+
+### Links not working
+
+- Internal links (`[[wikilinks]]`) should work automatically. If they don't, ensure the target note exists.
+- External links should use standard markdown link syntax: `[text](url)`
+
+## Contributing
+
+Any contributions and PRs are welcome! Feel free to open an issue or submit a pull request.
