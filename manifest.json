@@ -1,0 +1,11 @@
+{
+	"id": "obsidian-custom-views",
+	"name": "Custom Views",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "",
+	"author": "Anup Chavan",
+	"authorUrl": "https://anupchavan.com",
+	"fundingUrl": "",
+	"isDesktopOnly": false
+}
