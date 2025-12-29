@@ -1,7 +1,14 @@
 // src/matcher.ts
 import { TFile, FrontMatterCache } from "obsidian";
-import { FilterGroup, Filter, FilterOperator } from "./types";
+import { FilterGroup, Filter } from "./types";
 
+/**
+ * Evaluates the rules for a given filter group, file, and frontmatter
+ * @param group - The filter group to evaluate
+ * @param file - The file to evaluate the rules for
+ * @param frontmatter - The frontmatter of the file
+ * @returns True if all conditions in the group are met, false otherwise
+ */
 export function checkRules(group: FilterGroup, file: TFile, frontmatter?: FrontMatterCache): boolean {
 	if (!group || !group.conditions || group.conditions.length === 0) return true;
 
@@ -22,11 +29,16 @@ export function checkRules(group: FilterGroup, file: TFile, frontmatter?: FrontM
 	}
 }
 
+/**
+ * Evaluates a single filter for a given file and frontmatter
+ * @param filter - The filter to evaluate
+ * @param file - The file to evaluate the filter for
+ * @param frontmatter - The frontmatter of the file
+ * @returns True if the condition is met, false otherwise
+ */
 function evaluateFilter(filter: Filter, file: TFile, frontmatter?: FrontMatterCache): boolean {
 	let targetValue: any = null;
 
-	// 1. Resolve the value from File or Frontmatter
-	// Determine field type by checking if field starts with "file."
 	if (filter.field.startsWith("file.")) {
 		if (filter.field === "file.name") targetValue = file.name;
 		else if (filter.field === "file.basename") targetValue = file.basename;
@@ -37,21 +49,16 @@ function evaluateFilter(filter: Filter, file: TFile, frontmatter?: FrontMatterCa
 		else if (filter.field === "file.mtime") targetValue = file.stat.mtime;
 		else if (filter.field === "file.extension") targetValue = file.extension;
 	} else if (frontmatter) {
-		// Frontmatter field
 		targetValue = frontmatter[filter.field];
 	}
 
-	// Handle null/undefined
 	if (targetValue === undefined || targetValue === null) targetValue = "";
 
-	// Normalize to string for comparison (or array if checking includes)
 	const normalize = (val: any) => String(val).toLowerCase();
 	const filterValue = normalize(filter.value || "");
 
-	// If target is an array (e.g. tags: [a, b]), we handle it differently
 	const isArray = Array.isArray(targetValue);
 
-	// 2. Perform the Check
 	switch (filter.operator) {
 		case "is empty":
 			return isArray ? targetValue.length === 0 : !targetValue;
@@ -60,7 +67,6 @@ function evaluateFilter(filter: Filter, file: TFile, frontmatter?: FrontMatterCa
 
 		case "is":
 		case "is not": {
-			// Exact match
 			let match = false;
 			if (isArray) match = targetValue.some((v: any) => normalize(v) === filterValue);
 			else match = normalize(targetValue) === filterValue;
@@ -76,7 +82,7 @@ function evaluateFilter(filter: Filter, file: TFile, frontmatter?: FrontMatterCa
 		}
 
 		case "starts with":
-			if (isArray) return false; // Hard to strictly start with on an array
+			if (isArray) return false;
 			return normalize(targetValue).startsWith(filterValue);
 
 		case "ends with":

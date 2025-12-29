@@ -1,4 +1,4 @@
-import { Plugin, TFile, MarkdownView, MarkdownRenderer, Keymap, Notice } from "obsidian";
+import { Plugin, TFile, MarkdownView, Keymap, Notice } from "obsidian";
 import { CustomViewsSettings, DEFAULT_SETTINGS, CustomViewsSettingTab } from "./settings";
 import { checkRules } from "./matcher";
 import { renderTemplate } from "./renderer";
@@ -10,37 +10,30 @@ export default class CustomViewsPlugin extends Plugin {
 	settings: CustomViewsSettings;
 
 	async onload() {
-		console.log("[Custom Views] Loading...");
 		await this.loadSettings();
 		this.addSettingTab(new CustomViewsSettingTab(this.app, this));
 
-		// Command: Enable Custom Views
 		this.addCommand({
 			id: "enable-custom-views",
 			name: "Enable Custom Views",
 			checkCallback: (checking) => {
-				// Only show this command if plugin is currently DISABLED
 				if (checking) {
 					return !this.settings.enabled;
 				}
 
-				// Execute
 				this.setPluginState(true);
 				return true;
 			},
 		});
 
-		// Command: Disable Custom Views
 		this.addCommand({
 			id: "disable-custom-views",
 			name: "Disable Custom Views",
 			checkCallback: (checking) => {
-				// Only show this command if plugin is currently ENABLED
 				if (checking) {
 					return this.settings.enabled;
 				}
 
-				// Execute
 				this.setPluginState(false);
 				return true;
 			},
@@ -60,14 +53,12 @@ export default class CustomViewsPlugin extends Plugin {
 		this.addStyle();
 	}
 
-	// Helper to switch state, save, and refresh
 	async setPluginState(enabled: boolean) {
 		this.settings.enabled = enabled;
 		await this.saveSettings();
 
 		new Notice(enabled ? "Custom Views Enabled" : "Custom Views Disabled");
 
-		// Refresh the current view immediately
 		const file = this.app.workspace.getActiveFile();
 		if (file) {
 			this.processActiveView(file);
@@ -101,12 +92,10 @@ export default class CustomViewsPlugin extends Plugin {
                 margin-top: 20px;
             }
 
-            /* Ensure proper reading mode styling for rendered content */
             .${CUSTOM_VIEW_CLASS} .markdown-preview-section {
                 padding: 0;
             }
 
-            /* Fix list indentation and spacing to match reading mode */
             .${CUSTOM_VIEW_CLASS} .markdown-preview-section ul,
             .${CUSTOM_VIEW_CLASS} .markdown-preview-section ol {
                 padding-left: 1.625em;
@@ -125,7 +114,6 @@ export default class CustomViewsPlugin extends Plugin {
                 margin-block-end: 0.3em;
             }
 
-            /* Ensure proper paragraph spacing */
             .${CUSTOM_VIEW_CLASS} .markdown-preview-section p {
                 margin-block-start: 1em;
                 margin-block-end: 1em;
@@ -164,7 +152,6 @@ export default class CustomViewsPlugin extends Plugin {
 
 		const view = leaf.view;
 
-		// 1. Check Global Enabled State
 		if (!this.settings.enabled) {
 			this.restoreDefaultView(view);
 			return;
@@ -191,21 +178,17 @@ export default class CustomViewsPlugin extends Plugin {
 		const isReadingMode = state.mode === 'preview';
 		const isLivePreviewMode = state.mode === 'source' && state.source === false;
 
-		// Skip true source mode (pure editor)
 		if (isTrueSourceMode) {
 			this.restoreDefaultView(view);
 			return;
 		}
 
-		// Check if we should work in this view mode based on setting
 		if (!this.settings.workInLivePreview) {
-			// If workInLivePreview is OFF, only work in reading mode
 			if (!isReadingMode) {
 				this.restoreDefaultView(view);
 				return;
 			}
 		} else {
-			// If workInLivePreview is ON, work in both reading mode and live preview mode
 			if (!isReadingMode && !isLivePreviewMode) {
 				this.restoreDefaultView(view);
 				return;

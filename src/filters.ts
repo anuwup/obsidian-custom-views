@@ -1,17 +1,16 @@
 import { moment } from "obsidian";
 
-// Helper: Parse arguments like: "YYYY-MM-DD" or ("a", "b")
+/**
+ * Parse arguments like: "YYYY-MM-DD" or ("a", "b")
+ * @param argString - The string to parse
+ * @returns The parsed arguments
+ */
 function parseArgs(argString: string): any[] {
 	if (!argString) return [];
-
-	// Remove outer parenthesis if they exist: ("a", "b") -> "a", "b"
 	const content = argString.trim().replace(/^\((.*)\)$/, '$1');
-
-	// Split by comma, respecting quotes
-	const args: string[] = [];
+	const args: any[] = [];
 	let current = '';
 	let inQuote = false;
-
 	for (let i = 0; i < content.length; i++) {
 		const char = content[i];
 		if (char === '"' || char === "'") {
@@ -28,28 +27,32 @@ function parseArgs(argString: string): any[] {
 	return args;
 }
 
-function cleanQuote(str: string): any {
+/**
+ * Clean the string by removing the outer quotes if they exist.
+ * Also converts numeric strings to numbers.
+ * @param str - The string to clean
+ * @returns The cleaned string or number if the string represents a number
+ */
+function cleanQuote(str: string): string | number {
 	str = str.trim();
 	if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
 		return str.slice(1, -1);
 	}
-	// Check for numbers
+
 	if (!isNaN(Number(str))) return Number(str);
 	return str;
 }
 
-// =============================================================================
-// FILTER IMPLEMENTATIONS
-// =============================================================================
-
+/**
+ * Registry of filter functions available for template value transformation.
+ * Each filter takes a value and optional arguments, returning a transformed value.
+ */
 const filters: Record<string, (value: any, ...args: any[]) => any> = {
-	// --- Dates ---
 	date: (val: string | number, format?: string, inputFormat?: string) => {
 		const m = inputFormat ? moment(val, inputFormat) : moment(val);
 		return m.isValid() ? m.format(format || "YYYY-MM-DD") : val;
 	},
 	date_modify: (val: string, modification: string) => {
-		// Simple parser for "+1 year", "-2 months"
 		const parts = modification.trim().split(" ");
 		const amount = parseInt(parts[0]);
 		const unit = parts[1] as moment.unitOfTime.DurationConstructor;
@@ -57,7 +60,6 @@ const filters: Record<string, (value: any, ...args: any[]) => any> = {
 		return m.isValid() ? m.add(amount, unit).format("YYYY-MM-DD") : val;
 	},
 
-	// --- Text Conversion ---
 	capitalize: (val: string) => String(val).charAt(0).toUpperCase() + String(val).slice(1).toLowerCase(),
 	upper: (val: string) => String(val).toUpperCase(),
 	lower: (val: string) => String(val).toLowerCase(),
@@ -68,18 +70,15 @@ const filters: Record<string, (value: any, ...args: any[]) => any> = {
 	trim: (val: string) => String(val).trim(),
 
 	replace: (val: string, search: string, replaceWith: string = "") => {
-		// Handle Regex if string starts with /
 		if (search.startsWith("/")) {
 			const lastSlash = search.lastIndexOf("/");
 			const pattern = search.substring(1, lastSlash);
 			const flags = search.substring(lastSlash + 1);
 			return String(val).replace(new RegExp(pattern, flags), replaceWith);
 		}
-		// Use global regex replace instead of replaceAll for ES6 compatibility
 		return String(val).replace(new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), replaceWith);
 	},
 
-	// --- Formatting (Markdown) ---
 	wikilink: (val: any, alias?: string) => {
 		if (Array.isArray(val)) return val.map(v => `[[${v}${alias ? '|' + alias : ''}]]`).join(", ");
 		return `[[${val}${alias ? '|' + alias : ''}]]`;
@@ -96,15 +95,11 @@ const filters: Record<string, (value: any, ...args: any[]) => any> = {
 	},
 	blockquote: (val: string) => val.split('\n').map(line => `> ${line}`).join('\n'),
 
-	// --- HTML Processing ---
 	strip_tags: (val: string, keep?: string) => {
 		const doc = new DOMParser().parseFromString(val, 'text/html');
-		// A full implementation would need a complex sanitizer,
-		// simplistic text extraction:
 		return doc.body.textContent || "";
 	},
 
-	// --- Arrays ---
 	split: (val: string, separator: string = ",") => String(val).split(separator),
 	join: (val: any[], separator: string = ",") => Array.isArray(val) ? val.join(separator) : val,
 	first: (val: any[]) => Array.isArray(val) ? val[0] : val,
@@ -112,34 +107,47 @@ const filters: Record<string, (value: any, ...args: any[]) => any> = {
 	slice: (val: any[] | string, start: number, end?: number) => val.slice(start, end),
 	count: (val: any) => Array.isArray(val) ? val.length : String(val).length,
 
-	// Basic Arithmetic
 	calc: (val: number, opString: string) => {
-		// CAUTION: Simple eval-like safety check needed
-		// Format: "+10", "*2", "**3"
-		const op = opString.trim().charAt(0);
-		const num = parseFloat(opString.substring(1));
+		const trimmed = opString.trim();
 		const base = parseFloat(String(val));
-		if (isNaN(base) || isNaN(num)) return val;
+		if (isNaN(base)) return val;
+
+		if (trimmed.startsWith("**")) {
+			const num = parseFloat(trimmed.substring(2));
+			return isNaN(num) ? val : Math.pow(base, num);
+		}
+
+		const op = trimmed.charAt(0);
+		const num = parseFloat(trimmed.substring(1));
+		if (isNaN(num)) return val;
 
 		switch (op) {
 			case '+': return base + num;
 			case '-': return base - num;
 			case '*': return base * num;
 			case '/': return base / num;
-			case '^': case '*': return Math.pow(base, num); // Handles ** or ^
+			case '^': return Math.pow(base, num);
 			default: return val;
 		}
 	}
 };
 
-// =============================================================================
-// MAIN EXECUTION
-// =============================================================================
-
+/**
+ * Applies a chain of filters to a value.
+ * Filters are separated by pipes (|) and can include arguments after a colon.
+ *
+ * @param value - The value to transform
+ * @param filterChain - Pipe-separated filter chain (e.g., "upper | replace:\"old\",\"new\"")
+ * @returns The transformed value after applying all filters in sequence
+ *
+ * @example
+ * applyFilterChain("hello", "upper") // Returns: "HELLO"
+ * applyFilterChain("  test  ", "trim | upper") // Returns: "TEST"
+ * applyFilterChain(1234567890, "date:\"YYYY-MM-DD\"") // Returns formatted date
+ */
 export function applyFilterChain(value: any, filterChain: string): any {
 	if (!filterChain) return value;
 
-	// Split by pipe '|', ignoring pipes inside quotes
 	const steps: string[] = [];
 	let current = '';
 	let inQuote = false;
@@ -157,13 +165,11 @@ export function applyFilterChain(value: any, filterChain: string): any {
 	}
 	if (current) steps.push(current.trim());
 
-	// Process each filter
 	let result = value;
 
 	for (const step of steps) {
 		if (!step) continue;
 
-		// Separate filter name and args: name:arg1,arg2
 		const colonIndex = step.indexOf(':');
 		let name = step;
 		let args: any[] = [];

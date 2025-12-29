@@ -4,8 +4,7 @@ export type FilterOperator =
 	| "starts with" | "ends with"
 	| "is empty" | "is not empty";
 
-export type FilterConjunction = "AND" | "OR" | "NOR"; // All, Any, None
-
+export type FilterConjunction = "AND" | "OR" | "NOR";
 export interface Filter {
 	type: "filter";
 	field: string;
