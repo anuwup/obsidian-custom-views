@@ -94,7 +94,7 @@ none
 
 /* Container Reset */
 .cv-bases-query-container, .cv-bases-template-container {
-    padding: var(--size-4-4);
+    /* padding: var(--size-4-4); */
 }
 .cv-bases-query-container {
     padding: var(--size-4-4);
@@ -135,6 +135,14 @@ none
     align-items: center;
     justify-content: space-between;
     padding-bottom: var(--size-2-1);
+}
+.cv-filter-group-header .conjunction.dropdown {
+	border: none;
+	box-shadow: none;
+	background-color: transparent;
+}
+.cv-filter-group-header .conjunction.dropdown:hover {
+	background-color: var(--background-modifier-hover);
 }
 
 .cv-filter-group-statements {
@@ -182,6 +190,7 @@ select.cv-conjunction:hover {
     color: var(--text-muted);
     font-size: 13px;
     user-select: none;
+		min-width: 4.5rem;
 }
 
 /* The Main Filter Statement Box */
@@ -265,7 +274,7 @@ select.cv-conjunction:hover {
     display: flex;
     align-items: center;
     min-width: 100px;
-    padding: 0 4px;
+    padding: 0;
     position: relative;
 }
 
@@ -622,4 +631,90 @@ padding: var(--size-2-3) var(--size-4-2) var(--size-2-3) var(--size-4-2);
 
 .cv-text-input-wrapper {
     position: relative;
+}
+
+/* Views List Container */
+.cv-views-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-2-2);
+    margin-top: var(--size-4-3);
+}
+
+/* View List Item */
+.cv-view-list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+    padding: var(--size-4-2) var(--size-4-3);
+    border: var(--menu-border-width) solid var(--menu-border-color);
+    background-color: var(--menu-background);
+    border-radius: var(--menu-radius);
+    cursor: move;
+    transition: background-color var(--anim-duration-fast) ease-in-out;
+}
+
+.cv-view-list-item:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.cv-view-list-item.cv-dragging {
+    opacity: 0.5;
+}
+
+.cv-view-list-item.cv-drag-over {
+    border-top: 2px solid var(--interactive-accent);
+}
+
+/* Drag Handle */
+.cv-view-drag-handle {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    cursor: grab;
+    flex-shrink: 0;
+}
+
+.cv-view-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* View Name */
+.cv-view-name {
+    flex: 1;
+    font-weight: var(--font-medium);
+    color: var(--text-normal);
+}
+
+/* View Actions */
+.cv-view-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-1);
+    flex-shrink: 0;
+}
+
+/* Edit View Modal */
+.cv-edit-view-modal .modal-content {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.cv-edit-view-modal h2 {
+    margin-top: 0;
+    margin-bottom: var(--size-4-4);
+}
+
+.cv-edit-view-modal h3 {
+    margin-top: var(--size-4-4);
+    margin-bottom: var(--size-4-2);
+}
+
+.cv-modal-button-container {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--size-4-2);
+    margin-top: var(--size-4-4);
+    padding-top: var(--size-4-4);
+    border-top: var(--border-width) solid var(--background-modifier-border);
 }

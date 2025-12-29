@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, ButtonComponent, TextComponent, setIcon, Menu, TFile } from "obsidian";
+import { App, PluginSettingTab, Setting, ButtonComponent, TextComponent, setIcon, Menu, TFile, Modal } from "obsidian";
 import CustomViewsPlugin from "./main";
 import { ViewConfig, FilterGroup, Filter, FilterOperator, FilterConjunction } from "./types";
 
@@ -28,9 +28,7 @@ const OPERATORS: Record<string, string[]> = {
 const DEFAULT_RULES: FilterGroup = {
 	type: "group",
 	operator: "AND",
-	conditions: [
-		{ type: "filter", field: "file.name", operator: "contains", value: "" }
-	]
+	conditions: []
 };
 
 // --- SETTINGS TAB ---
@@ -56,6 +54,8 @@ export const DEFAULT_SETTINGS: CustomViewsSettings = {
 
 export class CustomViewsSettingTab extends PluginSettingTab {
 	plugin: CustomViewsPlugin;
+	private draggedElement: HTMLElement | null = null;
+	private draggedIndex: number | null = null;
 
 	constructor(app: App, plugin: CustomViewsPlugin) {
 		super(app, plugin);
@@ -65,49 +65,6 @@ export class CustomViewsSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-
-		// Inject CSS for the custom popovers
-		containerEl.createEl("style", {
-			text: `
-
-                .cv-popover-search {
-                    padding: 8px;
-                    border-bottom: 1px solid var(--background-modifier-border);
-                }
-                .cv-popover-search input {
-                    width: 100%;
-                }
-
-                .cv-popover-item:hover, .cv-popover-item.is-selected {
-                    background-color: var(--background-modifier-hover);
-                }
-                .cv-popover-content {
-                    display: flex;
-                    align-items: center;
-                    flex: 1;
-                    overflow: hidden;
-                }
-
-                .cv-popover-label {
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-                .cv-popover-check {
-                    margin-left: 8px;
-                    opacity: 0.5;
-                    flex-shrink: 0;
-                }
-
-
-
-
-
-            `
-		});
-
-		containerEl.createEl("h2", { text: "Settings" });
-
 		// Work in Live Preview Toggle
 		new Setting(containerEl)
 			.setName("Work in Live Preview")
@@ -124,61 +81,256 @@ export class CustomViewsSettingTab extends PluginSettingTab {
 					}
 				}));
 
-		containerEl.createEl("h2", { text: "Views Configuration" });
+
+
 
 		// Add New View
 		new Setting(containerEl)
+			.setHeading()
+			.setName("Views Configuration")
+			.setDesc("Views are checked in order from top to bottom. Drag to reorder.")
 			.addButton(btn => btn
 				.setButtonText("Add New View")
 				.setCta()
 				.onClick(async () => {
-					this.plugin.settings.views.push({
+					const newView: ViewConfig = {
 						id: `${Date.now()}`,
 						name: "New View",
 						rules: JSON.parse(JSON.stringify(DEFAULT_RULES)),
 						template: "<h1>{{file.basename}}</h1>"
-					});
+					};
+					this.plugin.settings.views.push(newView);
 					await this.plugin.saveSettings();
 					this.display();
+					// Open the edit modal for the new view
+					const newIndex = this.plugin.settings.views.length - 1;
+					new EditViewModal(this.app, this.plugin, newView, newIndex, () => {
+						this.display();
+					}).open();
 				}));
 
+		// Views List Container
+		const viewsListContainer = containerEl.createDiv({ cls: "cv-views-list-container" });
+
 		this.plugin.settings.views.forEach((view, index) => {
-			this.renderViewConfig(containerEl, view, index);
+			this.renderViewListItem(viewsListContainer, view, index);
 		});
 	}
 
-	renderViewConfig(container: HTMLElement, view: ViewConfig, index: number) {
-		const wrapper = container.createDiv({ cls: "cv-custom-view-box" });
+	renderViewListItem(container: HTMLElement, view: ViewConfig, index: number) {
+		const listItem = container.createDiv({ cls: "cv-view-list-item" });
+		listItem.setAttribute("data-view-id", view.id);
+		listItem.setAttribute("data-view-index", index.toString());
+		listItem.draggable = true;
 
-		// --- 1. Filter Builder (Pass Delete Callback) ---
-		const rulesContainer = wrapper.createDiv({ cls: "cv-bases-query-container" });
+		// Drag handle icon
+		const dragHandle = listItem.createDiv({ cls: "cv-view-drag-handle" });
+		setIcon(dragHandle, "grip-vertical");
 
-		const builder = new FilterBuilder(this.plugin, view.rules,
-			async () => { await this.plugin.saveSettings(); },
-			() => { rulesContainer.empty(); builder.render(rulesContainer); },
-			// OnDeleteView Callback
-			async () => {
-				this.plugin.settings.views.splice(index, 1);
-				await this.plugin.saveSettings();
+		// View name
+		const nameSpan = listItem.createSpan({ cls: "cv-view-name", text: view.name });
+
+		// Actions container
+		const actionsContainer = listItem.createDiv({ cls: "cv-view-actions" });
+
+		// Gear icon (edit)
+		const gearBtn = actionsContainer.createDiv({ cls: "cv-clickable-icon" });
+		setIcon(gearBtn, "settings");
+		gearBtn.setAttribute("aria-label", "Edit view");
+		gearBtn.onclick = (e) => {
+			e.stopPropagation();
+			new EditViewModal(this.app, this.plugin, view, index, () => {
 				this.display();
+			}).open();
+		};
+
+		// Delete icon
+		const deleteBtn = actionsContainer.createDiv({ cls: "cv-clickable-icon" });
+		setIcon(deleteBtn, "trash-2");
+		deleteBtn.setAttribute("aria-label", "Delete view");
+		deleteBtn.onclick = async (e) => {
+			e.stopPropagation();
+			this.plugin.settings.views.splice(index, 1);
+			await this.plugin.saveSettings();
+			this.display();
+		};
+
+		// Drag and drop handlers
+		listItem.addEventListener("dragstart", (e) => {
+			if (!e.dataTransfer) return;
+			e.dataTransfer.effectAllowed = "move";
+			this.draggedElement = listItem;
+			this.draggedIndex = index;
+			listItem.addClass("cv-dragging");
+			// Clear any existing drop indicators
+			container.querySelectorAll(".cv-view-list-item").forEach((el) => {
+				el.removeClass("cv-drag-over");
+			});
+		});
+
+		listItem.addEventListener("dragend", () => {
+			listItem.removeClass("cv-dragging");
+			container.querySelectorAll(".cv-view-list-item").forEach((el) => {
+				el.removeClass("cv-drag-over");
+			});
+			this.draggedElement = null;
+			this.draggedIndex = null;
+		});
+
+		listItem.addEventListener("dragover", (e) => {
+			e.preventDefault();
+			if (!e.dataTransfer || !this.draggedElement || this.draggedIndex === null) return;
+			e.dataTransfer.dropEffect = "move";
+
+			// Don't highlight the dragged element itself
+			if (listItem === this.draggedElement) return;
+
+			// Add visual feedback
+			listItem.addClass("cv-drag-over");
+		});
+
+		listItem.addEventListener("dragleave", () => {
+			listItem.removeClass("cv-drag-over");
+		});
+
+		listItem.addEventListener("drop", async (e) => {
+			e.preventDefault();
+			if (!e.dataTransfer || !this.draggedElement || this.draggedIndex === null) return;
+
+			// Don't do anything if dropping on itself
+			if (listItem === this.draggedElement) {
+				listItem.removeClass("cv-drag-over");
+				return;
 			}
+
+			const draggedView = this.plugin.settings.views[this.draggedIndex];
+
+			// Find the target index in the DOM (this matches the array index before any changes)
+			const allItems = Array.from(container.querySelectorAll(".cv-view-list-item")) as HTMLElement[];
+			const targetIndex = allItems.indexOf(listItem);
+
+			if (targetIndex === -1) return;
+
+			// Calculate the insertion index:
+			// When dragging down (draggedIndex < targetIndex): we want to insert AFTER the target
+			//   - After removal, target shifts down by 1, so insert at targetIndex (original target position)
+			// When dragging up (draggedIndex > targetIndex): we want to insert BEFORE the target
+			//   - After removal, target stays at same position, so insert at targetIndex
+			let newIndex: number;
+			if (this.draggedIndex < targetIndex) {
+				// Dragging down: remove first, then target is at targetIndex - 1, insert after it (at targetIndex)
+				newIndex = targetIndex;
+			} else {
+				// Dragging up: remove first, target stays at targetIndex, insert before it (at targetIndex)
+				newIndex = targetIndex;
+			}
+
+			// Ensure newIndex is valid (not negative)
+			if (newIndex < 0) newIndex = 0;
+
+			// Remove from old position first
+			this.plugin.settings.views.splice(this.draggedIndex, 1);
+
+			// Insert at new position (after removal, indices have shifted)
+			this.plugin.settings.views.splice(newIndex, 0, draggedView);
+
+			await this.plugin.saveSettings();
+			this.display();
+		});
+	}
+}
+
+// ==========================================================
+// EDIT VIEW MODAL
+// ==========================================================
+
+class EditViewModal extends Modal {
+	plugin: CustomViewsPlugin;
+	view: ViewConfig;
+	viewIndex: number;
+	onSave: () => void;
+	private nameTextComponent: TextComponent | null = null;
+
+	constructor(app: App, plugin: CustomViewsPlugin, view: ViewConfig, viewIndex: number, onSave: () => void) {
+		super(app);
+		this.plugin = plugin;
+		this.view = JSON.parse(JSON.stringify(view)); // Deep copy
+		this.viewIndex = viewIndex;
+		this.onSave = onSave;
+		this.setTitle('Edit View');
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass("cv-edit-view-modal");
+
+
+		// View Name Input
+		const nameSetting = new Setting(contentEl)
+			.setName("View Name")
+			.setDesc("The name of the view will be displayed in the view selector.")
+			.addText(text => {
+				this.nameTextComponent = text;
+				text.setValue(this.view.name)
+					.onChange(async (value) => {
+						this.view.name = value;
+					});
+				// Select all text when modal opens
+				requestAnimationFrame(() => {
+					text.inputEl.select();
+				});
+			});
+
+		// Rules Section
+		contentEl.createEl("h3", { text: "Rules" });
+		const rulesContainer = contentEl.createDiv({ cls: "cv-bases-query-container" });
+
+		const builder = new FilterBuilder(
+			this.plugin,
+			this.view.rules,
+			async () => { await this.plugin.saveSettings(); },
+			() => { rulesContainer.empty(); builder.render(rulesContainer); }
 		);
 		builder.render(rulesContainer);
 
-		// --- 2. Template Editor ---
-		const htmlTemplateContainer = wrapper.createDiv({ cls: "cv-bases-template-container" });
-		htmlTemplateContainer.createEl("div", { cls: "cv-bases-section-header", text: "HTML Template" });
-		const ta = new TextComponent(htmlTemplateContainer);
-		const textarea = htmlTemplateContainer.createEl("textarea", {
+		// Template Section
+		contentEl.createEl("h3", { text: "HTML Template" });
+		const templateContainer = contentEl.createDiv({ cls: "cv-bases-template-container" });
+		const textarea = templateContainer.createEl("textarea", {
 			cls: "cv-textarea",
-			text: view.template
+			text: this.view.template
+		});
+		textarea.addEventListener("input", async (e: any) => {
+			this.view.template = e.target.value;
 		});
 
-		ta.inputEl.replaceWith(textarea);
-		wrapper.querySelector("textarea")?.addEventListener("input", async (e: any) => {
-			view.template = e.target.value;
-			await this.plugin.saveSettings();
-		});
+		// Buttons
+		const buttonContainer = contentEl.createDiv('modal-button-container');
+
+
+
+		const saveBtn = new ButtonComponent(buttonContainer)
+			.setButtonText("Save")
+			.setCta()
+			.onClick(async () => {
+				// Update the original view
+				this.plugin.settings.views[this.viewIndex] = this.view;
+				await this.plugin.saveSettings();
+				this.onSave();
+				this.close();
+			});
+
+		const cancelBtn = new ButtonComponent(buttonContainer)
+			.setButtonText("Cancel")
+			.onClick(() => {
+				this.close();
+			});
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
 	}
 }
 
@@ -515,31 +667,39 @@ class FilterBuilder {
 		selectedValue: string,
 		onSelect: (val: string) => void
 	) {
-		// Remove any existing dropdowns
+		// 1. Clean up existing dropdowns
 		document.querySelectorAll('.cv-suggestion-container').forEach(el => el.remove());
 
-		// Create main container
+		// 2. Create main container attached to body (to escape overflow issues)
 		const container = document.body.createDiv({ cls: "cv-suggestion-container cv-combobox" });
 		const rect = anchorEl.getBoundingClientRect();
-		container.style.left = `${rect.left}px`;
-		container.style.top = `${rect.bottom + 5}px`;
 
-		// Create search input container
+		// Position logic
+		container.style.left = `${rect.left}px`;
+		container.style.top = `${rect.bottom + 5}px`; // Add a little gap
+
+		// 3. Prevent the container itself from triggering the close handler
+		container.addEventListener("mousedown", (e) => {
+			e.stopPropagation();
+		});
+
+		// 4. Create search input
 		const searchInputContainer = container.createDiv({ cls: "cv-search-input-container" });
 		const searchInput = searchInputContainer.createEl("input", {
 			type: "search",
 			placeholder: "Search...",
-			attr: { enterkeyhint: "search", spellcheck: "false" }
+			attr: { spellcheck: "false" }
 		});
 		const clearButton = searchInputContainer.createDiv({ cls: "cv-search-input-clear-button" });
 
-		// Create suggestions container
+		// 5. Create suggestions list container
 		const suggestionsContainer = container.createDiv({ cls: "cv-suggestion" });
 
+		// Renderer function
 		const render = (list: typeof items) => {
 			suggestionsContainer.empty();
 
-			// Helper to remove cv-is-selected from all items
+			// Helper to manage selection state
 			const clearSelected = () => {
 				suggestionsContainer.querySelectorAll('.cv-suggestion-item').forEach(el => {
 					el.removeClass('cv-is-selected');
@@ -552,129 +712,86 @@ class FilterBuilder {
 					suggestionItem.addClass("cv-is-selected");
 				}
 
-				// Check icon (for selected item)
+				// Check icon
 				if (item.value === selectedValue) {
 					const checkIcon = suggestionItem.createDiv({ cls: "cv-suggestion-icon cv-mod-checked" });
 					setIcon(checkIcon, "check");
 				}
 
-				// Main icon
+				// Item Icon (if exists)
 				const iconDiv = suggestionItem.createDiv({ cls: "cv-suggestion-icon" });
 				const flair = iconDiv.createSpan({ cls: "cv-suggestion-flair" });
 				if (item.icon) {
 					setIcon(flair, item.icon);
 				}
 
-				// Content
+				// Label
 				const content = suggestionItem.createDiv({ cls: "cv-suggestion-content" });
 				content.createDiv({ cls: "cv-suggestion-title", text: item.label });
 
-				// Aux (for additional info if needed)
-				const aux = suggestionItem.createDiv({ cls: "cv-suggestion-aux" });
-
-				// Hover handlers
+				// Mouse interactions
 				suggestionItem.onmouseenter = () => {
 					clearSelected();
 					suggestionItem.addClass('cv-is-selected');
 				};
 
 				suggestionItem.onclick = (evt) => {
-					evt.stopPropagation();
+					evt.stopPropagation(); // Stop click from bubbling
 					onSelect(item.value);
 					container.remove();
+					// Cleanup listener
+					document.removeEventListener("mousedown", closeHandler);
 				};
 			});
 		};
 
-		// Search functionality
-		// Blur the anchor button and make it unfocusable to prevent it from stealing focus
-		if (anchorEl instanceof HTMLElement) {
-			anchorEl.blur();
-			anchorEl.setAttribute("tabindex", "-1");
-			// Prevent focus events on the button
-			anchorEl.addEventListener("focus", (e) => {
-				// #region agent log
-				fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:515', message: 'Preventing button focus', data: { target: (e.target as HTMLElement)?.tagName }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'post-fix', hypothesisId: 'E' }) }).catch(() => { });
-				// #endregion
-				e.preventDefault();
-				e.stopPropagation();
-				anchorEl.blur();
-				searchInput.focus();
-			}, { capture: true });
-		}
-		// Use setTimeout to ensure the button has lost focus before focusing the input
-		setTimeout(() => {
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:525', message: 'Focusing input after delay', data: { documentActiveElement: document.activeElement?.tagName, containerInDOM: container.isConnected }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'post-fix', hypothesisId: 'E' }) }).catch(() => { });
-			// #endregion
-			searchInput.focus();
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:527', message: 'After focus call', data: { documentActiveElement: document.activeElement?.tagName, isInput: document.activeElement === searchInput }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'post-fix', hypothesisId: 'E' }) }).catch(() => { });
-			// #endregion
-		}, 10);
-		container.addClass("cv-has-input-focus");
+		// 6. Input Event Handlers
+
+		// Search Filtering
 		searchInput.addEventListener("input", (e: any) => {
 			const val = e.target.value.toLowerCase();
 			const filtered = items.filter(i => i.label.toLowerCase().includes(val) || i.value.toLowerCase().includes(val));
 			render(filtered);
 		});
-		searchInput.addEventListener("focus", (e) => {
-			// #region agent log
-			const relatedTarget = (e as FocusEvent).relatedTarget;
-			const relatedTargetTagName = relatedTarget instanceof HTMLElement ? relatedTarget.tagName : null;
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:513', message: 'Input focus event', data: { target: document.activeElement?.tagName, relatedTarget: relatedTargetTagName }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-			// #endregion
-			container.addClass("cv-has-input-focus");
-		});
-		searchInput.addEventListener("blur", (e) => {
-			// #region agent log
-			const relatedTarget = (e as FocusEvent).relatedTarget;
-			const relatedTargetTagName = relatedTarget instanceof HTMLElement ? relatedTarget.tagName : null;
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:516', message: 'Input blur event', data: { target: document.activeElement?.tagName, relatedTarget: relatedTargetTagName, containerStillExists: container.isConnected }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-			// #endregion
-			container.removeClass("cv-has-input-focus");
-		});
-		searchInput.addEventListener("click", (e) => {
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:520', message: 'Input click event', data: { target: (e.target as HTMLElement)?.tagName, containerContainsTarget: container.contains(e.target as Node) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-			// #endregion
-			e.stopPropagation();
-		});
-		searchInput.addEventListener("mousedown", (e) => {
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:524', message: 'Input mousedown event', data: { target: (e.target as HTMLElement)?.tagName }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-			// #endregion
-			e.stopPropagation();
-		});
 
-		// Clear button functionality
-		clearButton.onclick = () => {
+		// Visual focus state for styling
+		searchInput.addEventListener("focus", () => container.addClass("cv-has-input-focus"));
+		searchInput.addEventListener("blur", () => container.removeClass("cv-has-input-focus"));
+
+		// Stop propagation on input interactions to prevent closing
+		searchInput.addEventListener("click", (e) => e.stopPropagation());
+		searchInput.addEventListener("mousedown", (e) => e.stopPropagation());
+
+		// Clear button logic
+		clearButton.onclick = (e) => {
+			e.stopPropagation();
 			searchInput.value = "";
 			searchInput.focus();
 			render(items);
 		};
 
-		// Initial render
+		// 7. Render initial list
 		render(items);
-		// #region agent log
-		fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:527', message: 'After render', data: { documentActiveElement: document.activeElement?.tagName, isInput: document.activeElement === searchInput }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
-		// #endregion
 
-		// Close handler
+		// 8. Focus management (Use requestAnimationFrame for reliability)
+		requestAnimationFrame(() => {
+			searchInput.focus();
+		});
+
+		// 9. Close Handler (The critical fix)
+		// We use 'mousedown' instead of 'click' because focus changes on mousedown.
 		const closeHandler = (evt: MouseEvent) => {
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:531', message: 'closeHandler triggered', data: { targetTag: (evt.target as HTMLElement)?.tagName, targetClass: (evt.target as HTMLElement)?.className, isSearchInput: evt.target === searchInput, containerContains: container.contains(evt.target as Node), willClose: !container.contains(evt.target as Node) && evt.target !== anchorEl && !anchorEl.contains(evt.target as Node) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-			// #endregion
-			if (!container.contains(evt.target as Node) && evt.target !== anchorEl && !anchorEl.contains(evt.target as Node)) {
+			const target = evt.target as Node;
+			// If click is outside container AND outside the button that opened it
+			if (!container.contains(target) && anchorEl !== target && !anchorEl.contains(target)) {
 				container.remove();
-				document.removeEventListener("click", closeHandler);
+				document.removeEventListener("mousedown", closeHandler);
 			}
 		};
+
+		// Attach with a tiny delay to ensure the opening click doesn't trigger it immediately
 		setTimeout(() => {
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/449950d1-16ff-4fc2-beef-90db3e564ad1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings.ts:537', message: 'Registering closeHandler', data: { documentActiveElement: document.activeElement?.tagName }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-			// #endregion
-			document.addEventListener("click", closeHandler);
+			document.addEventListener("mousedown", closeHandler);
 		}, 0);
 	}
 
